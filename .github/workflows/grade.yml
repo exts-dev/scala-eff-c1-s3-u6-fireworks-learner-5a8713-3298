@@ -1,0 +1,40 @@
+name: Your submission earns a grade greater than 80%
+on: push
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: coursier/setup-action@v1
+        with:
+          jvm: adopt:11
+      - name: Package submission
+        run: sbt packageSubmission
+      - uses: actions/upload-artifact@v2
+        with:
+          name: submission-${{ github.run_number }}
+          path: submission.jar
+  grade:
+    needs: package
+    runs-on: [self-hosted, scala-effective-miniprojects]
+    defaults:
+      run:
+        working-directory: /grader
+    container: ic-registry.epfl.ch/scalacenter-exts/effective-scala-fireworks:84527f46
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: submission-${{ github.run_number }}
+          path: /download_dir
+      - name: Grade submission
+        run: |
+          mkdir -p /shared/submission
+          cp /download_dir/submission.jar /shared/submission/submission.jar
+          ./grade
+      - name: Export grading report
+        uses: actions/upload-artifact@v2
+        with:
+          name: feedback-${{ github.run_number }}
+          path: /shared/htmlFeedback.html
+      - name: Check grade
+        run: cat /shared/feedback.json | jq --exit-status '.fractionalScore >= 0.8'
